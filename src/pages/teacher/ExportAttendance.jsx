@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { Loading } from '../../components/ui/Loading'
 import { Table, THead, Th, TBody, Td } from '../../components/ui/Table'
 import { Badge } from '../../components/ui/Badge'
-import { formatDate, formatDateOnly, formatDuration, computeAttendanceStatus } from '../../lib/utils'
+import { formatDate, formatDateOnly, formatDuration, getFinalAttendanceStatus, formatMissingDuration } from '../../lib/utils'
 import { Download } from 'lucide-react'
 
 export function ExportAttendance() {
@@ -18,13 +18,15 @@ export function ExportAttendance() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const statusLabel = (status) => {
+  const finalStatusLabel = (record) => {
+    const status = getFinalAttendanceStatus(record)
     if (status === 'present') return 'Present'
     if (status === 'teacher_review') return 'Teacher Review'
     return 'Absent'
   }
 
-  const statusVariant = (status) => {
+  const finalStatusVariant = (record) => {
+    const status = getFinalAttendanceStatus(record)
     if (status === 'present') return 'success'
     if (status === 'teacher_review') return 'warning'
     return 'danger'
@@ -68,14 +70,17 @@ export function ExportAttendance() {
       Duration: formatDuration(r.marked_at, r.exit_verified_at),
       'Entry Verified': r.face_verified ? 'Yes' : 'No',
       'Exit Verified': r.exit_verified ? 'Yes' : 'No',
-      Status: statusLabel(computeAttendanceStatus(r)),
+      'Presence Score': r.presence_score != null ? `${r.presence_score}%` : '—',
+      'Missing Duration': formatMissingDuration(r.missing_duration),
+      Status: finalStatusLabel(r),
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
     ws['!cols'] = [
       { wch: 5 }, { wch: 25 }, { wch: 30 }, { wch: 12 },
-      { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+      { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 18 },
     ]
     const subjectCode = selectedSession.subjects?.code || 'ATT'
     const date = formatDateOnly(selectedSession.created_at).replace(/\//g, '-')
@@ -124,31 +129,34 @@ export function ExportAttendance() {
             ) : (
               <Table>
                 <THead>
-                  <tr><Th>#</Th><Th>Name</Th><Th>Seat</Th><Th>Entry Time</Th><Th>Exit Time</Th><Th>Duration</Th><Th>Status</Th></tr>
+                  <tr><Th>#</Th><Th>Name</Th><Th>Seat</Th><Th>Entry Time</Th><Th>Exit Time</Th><Th>Duration</Th><Th>Presence Score</Th><Th>Missing Duration</Th><Th>Status</Th></tr>
                 </THead>
                 <TBody>
-                  {records.map((r, i) => {
-                    const status = computeAttendanceStatus(r)
-                    return (
-                      <tr key={r.id}>
-                        <Td>{i + 1}</Td>
-                        <Td className="font-medium">{r.profiles?.full_name}</Td>
-                        <Td>{r.seat_row !== null ? `R${r.seat_row + 1}-C${r.seat_col + 1}` : '—'}</Td>
-                        <Td className="text-xs text-gray-500">
-                          {r.marked_at ? new Date(r.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </Td>
-                        <Td className="text-xs text-gray-500">
-                          {r.exit_verified_at ? new Date(r.exit_verified_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </Td>
-                        <Td className="text-xs text-gray-500">
-                          {formatDuration(r.marked_at, r.exit_verified_at)}
-                        </Td>
-                        <Td>
-                          <Badge variant={statusVariant(status)}>{statusLabel(status)}</Badge>
-                        </Td>
-                      </tr>
-                    )
-                  })}
+                  {records.map((r, i) => (
+                    <tr key={r.id}>
+                      <Td>{i + 1}</Td>
+                      <Td className="font-medium">{r.profiles?.full_name}</Td>
+                      <Td>{r.seat_row !== null ? `R${r.seat_row + 1}-C${r.seat_col + 1}` : '—'}</Td>
+                      <Td className="text-xs text-gray-500">
+                        {r.marked_at ? new Date(r.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </Td>
+                      <Td className="text-xs text-gray-500">
+                        {r.exit_verified_at ? new Date(r.exit_verified_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </Td>
+                      <Td className="text-xs text-gray-500">
+                        {formatDuration(r.marked_at, r.exit_verified_at)}
+                      </Td>
+                      <Td className="text-xs font-medium">
+                        {r.presence_score != null ? `${r.presence_score}%` : '—'}
+                      </Td>
+                      <Td className="text-xs text-gray-500">
+                        {formatMissingDuration(r.missing_duration)}
+                      </Td>
+                      <Td>
+                        <Badge variant={finalStatusVariant(r)}>{finalStatusLabel(r)}</Badge>
+                      </Td>
+                    </tr>
+                  ))}
                 </TBody>
               </Table>
             )}

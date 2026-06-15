@@ -247,3 +247,52 @@ ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS exit_verified_at TIMESTA
 
 ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_token TEXT UNIQUE;
 ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_expires_at TIMESTAMPTZ;
+
+-- Classroom Presence Monitoring Module
+CREATE TABLE seat_presence_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  seat_row INTEGER NOT NULL,
+  seat_col INTEGER NOT NULL,
+  is_present BOOLEAN NOT NULL DEFAULT FALSE,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE seat_presence_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE absence_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  seat_row INTEGER NOT NULL,
+  seat_col INTEGER NOT NULL,
+  missing_since TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  duration INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'resolved', 'marked_present', 'marked_absent', 'ignored')),
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE absence_alerts ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS presence_score NUMERIC(5,2);
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS missing_duration INTEGER DEFAULT 0;
+
+ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS monitoring_status TEXT DEFAULT 'inactive' CHECK (monitoring_status IN ('inactive', 'active', 'paused'));
+
+ALTER TABLE seat_allocations ADD COLUMN IF NOT EXISTS is_present BOOLEAN DEFAULT FALSE;
+ALTER TABLE seat_allocations ADD COLUMN IF NOT EXISTS last_presence_check TIMESTAMPTZ;
+
+CREATE POLICY "Users can view presence logs" ON seat_presence_logs FOR SELECT USING (true);
+CREATE POLICY "Teachers can insert presence logs" ON seat_presence_logs FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+);
+
+CREATE POLICY "Users can view absence alerts" ON absence_alerts FOR SELECT USING (true);
+CREATE POLICY "Teachers can manage absence alerts" ON absence_alerts FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE seat_presence_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE absence_alerts;

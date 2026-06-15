@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Loading } from '../../components/ui/Loading'
 import { Badge } from '../../components/ui/Badge'
-import { formatDate, formatDuration, computeAttendanceStatus } from '../../lib/utils'
+import { formatDate, formatDuration, getFinalAttendanceStatus, formatMissingDuration } from '../../lib/utils'
 import { Users, Clock, MapPin, UserCheck, UserX } from 'lucide-react'
 
 export function LiveAttendance() {
@@ -146,16 +146,17 @@ export function LiveAttendance() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">#</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Entry Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Exit Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Duration</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Entry</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Exit</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Seat</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Presence</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Missing</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Face</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {records.map((rec, i) => {
-                  const status = computeAttendanceStatus(rec)
+                  const status = getFinalAttendanceStatus(rec)
                   return (
                     <tr key={rec.id} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3 text-gray-400">{i + 1}</td>
@@ -177,12 +178,15 @@ export function LiveAttendance() {
                         {rec.exit_verified_at ? new Date(rec.exit_verified_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
-                        {formatDuration(rec.marked_at, rec.exit_verified_at)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">
                         {rec.seat_row !== null && rec.seat_col !== null
                           ? `${String.fromCharCode(65 + rec.seat_row)}${rec.seat_col + 1}`
                           : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 font-medium">
+                        {rec.presence_score != null ? `${rec.presence_score}%` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {formatMissingDuration(rec.missing_duration)}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={rec.face_verified ? 'success' : 'secondary'}>{rec.face_verified ? 'Yes' : 'No'}</Badge>
@@ -192,7 +196,7 @@ export function LiveAttendance() {
                 })}
                 {records.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                    <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
                       <UserX size={32} className="mx-auto mb-2 text-gray-300" />
                       No attendance recorded yet
                     </td>

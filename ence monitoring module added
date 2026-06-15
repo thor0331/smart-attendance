@@ -1,0 +1,58 @@
+warning: in the working copy of 'supabase/migration.sql', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/supabase/migration.sql b/supabase/migration.sql[m
+[1mindex 1f2e893..5b3ee7d 100644[m
+[1m--- a/supabase/migration.sql[m
+[1m+++ b/supabase/migration.sql[m
+[36m@@ -247,3 +247,52 @@[m [mALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS exit_verified_at TIMESTA[m
+ [m
+ ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_token TEXT UNIQUE;[m
+ ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_expires_at TIMESTAMPTZ;[m
+[32m+[m
+[32m+[m[32m-- Classroom Presence Monitoring Module[m
+[32m+[m[32mCREATE TABLE seat_presence_logs ([m
+[32m+[m[32m  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),[m
+[32m+[m[32m  session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,[m
+[32m+[m[32m  student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,[m
+[32m+[m[32m  seat_row INTEGER NOT NULL,[m
+[32m+[m[32m  seat_col INTEGER NOT NULL,[m
+[32m+[m[32m  is_present BOOLEAN NOT NULL DEFAULT FALSE,[m
+[32m+[m[32m  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()[m
+[32m+[m[32m);[m
+[32m+[m
+[32m+[m[32mALTER TABLE seat_presence_logs ENABLE ROW LEVEL SECURITY;[m
+[32m+[m
+[32m+[m[32mCREATE TABLE absence_alerts ([m
+[32m+[m[32m  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),[m
+[32m+[m[32m  session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,[m
+[32m+[m[32m  student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,[m
+[32m+[m[32m  seat_row INTEGER NOT NULL,[m
+[32m+[m[32m  seat_col INTEGER NOT NULL,[m
+[32m+[m[32m  missing_since TIMESTAMPTZ NOT NULL DEFAULT NOW(),[m
+[32m+[m[32m  duration INTEGER NOT NULL DEFAULT 0,[m
+[32m+[m[32m  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'resolved', 'marked_present', 'marked_absent', 'ignored')),[m
+[32m+[m[32m  resolved_at TIMESTAMPTZ,[m
+[32m+[m[32m  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()[m
+[32m+[m[32m);[m
+[32m+[m
+[32m+[m[32mALTER TABLE absence_alerts ENABLE ROW LEVEL SECURITY;[m
+[32m+[m
+[32m+[m[32mALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS presence_score NUMERIC(5,2);[m
+[32m+[m[32mALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS missing_duration INTEGER DEFAULT 0;[m
+[32m+[m
+[32m+[m[32mALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS monitoring_status TEXT DEFAULT 'inactive' CHECK (monitoring_status IN ('inactive', 'active', 'paused'));[m
+[32m+[m
+[32m+[m[32mALTER TABLE seat_allocations ADD COLUMN IF NOT EXISTS is_present BOOLEAN DEFAULT FALSE;[m
+[32m+[m[32mALTER TABLE seat_allocations ADD COLUMN IF NOT EXISTS last_presence_check TIMESTAMPTZ;[m
+[32m+[m
+[32m+[m[32mCREATE POLICY "Users can view presence logs" ON seat_presence_logs FOR SELECT USING (true);[m
+[32m+[m[32mCREATE POLICY "Teachers can insert presence logs" ON seat_presence_logs FOR INSERT WITH CHECK ([m
+[32m+[m[32m  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')[m
+[32m+[m[32m);[m
+[32m+[m
+[32m+[m[32mCREATE POLICY "Users can view absence alerts" ON absence_alerts FOR SELECT USING (true);[m
+[32m+[m[32mCREATE POLICY "Teachers can manage absence alerts" ON absence_alerts FOR ALL USING ([m
+[32m+[m[32m  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')[m
+[32m+[m[32m);[m
+[32m+[m
+[32m+[m[32mALTER PUBLICATION supabase_realtime ADD TABLE seat_presence_logs;[m
+[32m+[m[32mALTER PUBLICATION supabase_realtime ADD TABLE absence_alerts;[m

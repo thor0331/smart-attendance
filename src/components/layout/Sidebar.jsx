@@ -35,7 +35,7 @@ const adminLinks = [
 const teacherLinks = [
   { to: '/teacher', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/teacher/sessions', label: 'New Session', icon: QrCode },
-  { to: '/teacher/monitor', label: 'Seat Monitor', icon: Monitor },
+  { to: '/teacher/monitor', label: 'Presence Monitor', icon: Monitor },
   { to: '/teacher/export', label: 'Export', icon: FileSpreadsheet },
 ]
 
