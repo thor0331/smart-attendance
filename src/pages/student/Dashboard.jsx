@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Loading } from '../../components/ui/Loading'
-import { ScanQrCode, BookOpen, BarChart3, ArrowRight, Fingerprint, MapPin, CheckCircle } from 'lucide-react'
+import { ScanQrCode, BookOpen, BarChart3, ArrowRight, Fingerprint, MapPin, CheckCircle, LogOut } from 'lucide-react'
 
 export function StudentDashboard() {
   const { profile } = useAuth()
@@ -84,9 +84,10 @@ export function StudentDashboard() {
               { icon: ScanQrCode, label: 'Scan QR', desc: 'Teacher shows QR', action: '/student/scan' },
               { icon: Fingerprint, label: 'Face Verify', desc: 'Match your photo', action: '/student/face' },
               { icon: MapPin, label: 'Select Seat', desc: 'Pick your seat', action: '/student/seat' },
-              { icon: CheckCircle, label: 'Complete', desc: 'Attendance marked', action: '/student/reports' },
+              { icon: LogOut, label: 'Exit Verify', desc: 'Scan exit QR from teacher', action: null },
+              { icon: CheckCircle, label: 'Reports', desc: 'View attendance', action: '/student/reports' },
             ].map((step, i) => (
-              <div key={i} className="flex flex-col items-center gap-1.5 text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate(step.action)}>
+              <div key={i} className="flex flex-col items-center gap-1.5 text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => step.action && navigate(step.action)}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
                   <step.icon size={18} className="text-indigo-600" />
                 </div>

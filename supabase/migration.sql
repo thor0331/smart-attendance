@@ -239,3 +239,11 @@ CREATE TRIGGER on_auth_user_created
 -- Enable Realtime for attendance_records (for live attendance tracking)
 ALTER PUBLICATION supabase_realtime ADD TABLE attendance_records;
 ALTER PUBLICATION supabase_realtime ADD TABLE attendance_sessions;
+
+-- Exit Attendance Module
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS exit_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS exit_face_url TEXT;
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS exit_verified_at TIMESTAMPTZ;
+
+ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_token TEXT UNIQUE;
+ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS exit_qr_expires_at TIMESTAMPTZ;

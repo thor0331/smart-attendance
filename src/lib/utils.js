@@ -27,3 +27,19 @@ export function getInitials(name) {
     .toUpperCase()
     .slice(0, 2)
 }
+
+export function formatDuration(entryTime, exitTime) {
+  if (!entryTime || !exitTime) return '—'
+  const diff = new Date(exitTime) - new Date(entryTime)
+  if (diff < 0) return '—'
+  const hours = Math.floor(diff / 3600000)
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+export function computeAttendanceStatus(record) {
+  if (record.face_verified && record.exit_verified) return 'present'
+  if (record.face_verified && !record.exit_verified) return 'teacher_review'
+  return 'absent'
+}

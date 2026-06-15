@@ -1,16 +1,20 @@
 import { useRef, useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFaceApi } from '../../hooks/useFaceApi'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Loading } from '../../components/ui/Loading'
-import { Camera, CameraOff, Upload, Check, X, AlertCircle, RefreshCw } from 'lucide-react'
+import { Camera, CameraOff, Upload, Check, X, AlertCircle, RefreshCw, LogOut, Fingerprint } from 'lucide-react'
 
 export function FaceVerify() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('mode') || 'entry'
+  const recordId = searchParams.get('recordId')
+  const isExit = mode === 'exit'
   const { loaded: faceLoaded, error: faceError, compareFaces } = useFaceApi()
   const webcamRef = useRef(null)
   const [streaming, setStreaming] = useState(false)
@@ -23,19 +27,29 @@ export function FaceVerify() {
 
   useEffect(() => {
     const fetchPending = async () => {
-      const { data } = await supabase
-        .from('attendance_records')
-        .select('*, attendance_sessions!inner(id, subject_id, subjects(name,code), status)')
-        .eq('student_id', profile.id)
-        .eq('face_verified', false)
-        .order('marked_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (data) setPendingRecord(data)
+      if (isExit && recordId) {
+        const { data } = await supabase
+          .from('attendance_records')
+          .select('*, attendance_sessions!inner(id, subject_id, subjects(name,code), status)')
+          .eq('id', recordId)
+          .eq('student_id', profile.id)
+          .maybeSingle()
+        if (data) setPendingRecord(data)
+      } else {
+        const { data } = await supabase
+          .from('attendance_records')
+          .select('*, attendance_sessions!inner(id, subject_id, subjects(name,code), status)')
+          .eq('student_id', profile.id)
+          .eq('face_verified', false)
+          .order('marked_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (data) setPendingRecord(data)
+      }
       setLoading(false)
     }
     fetchPending()
-  }, [profile])
+  }, [profile, isExit, recordId])
 
   const stopCamera = () => {
     if (webcamRef.current?.srcObject) {
@@ -119,24 +133,49 @@ export function FaceVerify() {
       const { data: { publicUrl } } = supabase.storage.from('face-images').getPublicUrl(fileName)
       setUploading(true)
 
-      const { error: updateErr } = await supabase
-        .from('attendance_records')
-        .update({ face_image_url: publicUrl, face_verified: true, verified: true })
-        .eq('id', pendingRecord.id)
+      if (isExit) {
+        const { error: updateErr } = await supabase
+          .from('attendance_records')
+          .update({
+            exit_face_url: publicUrl,
+            exit_verified: true,
+            exit_verified_at: new Date().toISOString(),
+          })
+          .eq('id', pendingRecord.id)
 
-      setUploading(false)
+        setUploading(false)
 
-      if (updateErr) {
-        setResult({ success: false, message: 'Failed to update attendance record' })
-        setVerifying(false)
-        return
+        if (updateErr) {
+          setResult({ success: false, message: 'Failed to update exit record' })
+          setVerifying(false)
+          return
+        }
+
+        setResult({
+          success: true,
+          message: `Exit verified! Match distance: ${distance.toFixed(3)}`,
+          faceImage: publicUrl,
+        })
+      } else {
+        const { error: updateErr } = await supabase
+          .from('attendance_records')
+          .update({ face_image_url: publicUrl, face_verified: true, verified: true })
+          .eq('id', pendingRecord.id)
+
+        setUploading(false)
+
+        if (updateErr) {
+          setResult({ success: false, message: 'Failed to update attendance record' })
+          setVerifying(false)
+          return
+        }
+
+        setResult({
+          success: true,
+          message: `Face verified! Match distance: ${distance.toFixed(3)}`,
+          faceImage: publicUrl,
+        })
       }
-
-      setResult({
-        success: true,
-        message: `Face verified! Match distance: ${distance.toFixed(3)}`,
-        faceImage: publicUrl,
-      })
     } catch (err) {
       setResult({ success: false, message: 'Verification failed. Please try again.' })
       console.error('Face verification error:', err)
@@ -153,8 +192,12 @@ export function FaceVerify() {
           <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
             <Check size={48} className="text-emerald-400" />
             <h2 className="text-xl font-bold text-gray-900">No Pending Verification</h2>
-            <p className="text-sm text-gray-500">All face verifications are complete. Scan a QR code to start a new session.</p>
-            <Button onClick={() => navigate('/student/scan')}>Scan QR</Button>
+            <p className="text-sm text-gray-500">
+              {isExit ? 'Exit already verified for this session.' : 'All face verifications are complete. Scan a QR code to start a new session.'}
+            </p>
+            <Button onClick={() => navigate(isExit ? '/student' : '/student/scan')}>
+              {isExit ? 'Dashboard' : 'Scan QR'}
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -169,18 +212,30 @@ export function FaceVerify() {
             <div className="rounded-full bg-emerald-100 p-4">
               <Check size={40} className="text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Face Verified!</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isExit ? 'Exit Verified!' : 'Face Verified!'}
+            </h2>
             <p className="text-center text-sm text-green-600 font-medium">{result.message}</p>
             {result.faceImage && (
               <img src={result.faceImage} alt="Verification" className="h-24 w-24 rounded-full border-2 border-emerald-300 object-cover" />
             )}
             <div className="w-full space-y-1 text-center text-sm text-gray-500">
               <p>Subject: {pendingRecord.attendance_sessions?.subjects?.name}</p>
-              <p>Next: Select your seat</p>
+              {isExit ? (
+                <p className="text-emerald-600 font-medium">Attendance complete. You may leave.</p>
+              ) : (
+                <p>Next: Select your seat</p>
+              )}
             </div>
-            <Button onClick={() => navigate('/student/seat')}>
-              Select Seat <span className="ml-1">&rarr;</span>
-            </Button>
+            {isExit ? (
+              <Button onClick={() => navigate('/student/reports')}>
+                View Reports <span className="ml-1">&rarr;</span>
+              </Button>
+            ) : (
+              <Button onClick={() => navigate('/student/seat')}>
+                Select Seat <span className="ml-1">&rarr;</span>
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -190,8 +245,12 @@ export function FaceVerify() {
   return (
     <div className="mx-auto max-w-md space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Face Verification</h1>
-        <p className="text-sm text-gray-500">Match your face with the registered photo</p>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isExit ? 'Exit Face Verification' : 'Face Verification'}
+        </h1>
+        <p className="text-sm text-gray-500">
+          {isExit ? 'Verify your face to confirm exit attendance' : 'Match your face with the registered photo'}
+        </p>
       </div>
 
       <Card>
@@ -202,6 +261,12 @@ export function FaceVerify() {
               <span className="text-xs text-gray-400">{pendingRecord.attendance_sessions.subjects.code}</span>
             )}
           </div>
+          {isExit && (
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2">
+              <LogOut size={14} className="text-indigo-600" />
+              <span className="text-xs font-medium text-indigo-700">Exit Verification</span>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {!faceLoaded && !faceError && (

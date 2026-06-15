@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Loading } from '../../components/ui/Loading'
 import { Table, THead, Th, TBody, Td } from '../../components/ui/Table'
-import { formatDate } from '../../lib/utils'
+import { formatDate, formatDuration, computeAttendanceStatus } from '../../lib/utils'
 import { BarChart3 } from 'lucide-react'
 
 export function AttendanceReport() {
@@ -26,9 +26,22 @@ export function AttendanceReport() {
     fetchRecords()
   }, [profile])
 
+  const statusLabel = (status) => {
+    if (status === 'present') return 'Present'
+    if (status === 'teacher_review') return 'Teacher Review'
+    return 'Absent'
+  }
+
+  const statusVariant = (status) => {
+    if (status === 'present') return 'success'
+    if (status === 'teacher_review') return 'warning'
+    return 'danger'
+  }
+
   if (loading) return <Loading />
 
-  const present = records.filter((r) => r.verified).length
+  const present = records.filter((r) => computeAttendanceStatus(r) === 'present').length
+  const teacherReview = records.filter((r) => computeAttendanceStatus(r) === 'teacher_review').length
   const total = records.length
   const rate = total > 0 ? Math.round((present / total) * 100) : 0
 
@@ -37,7 +50,7 @@ export function AttendanceReport() {
     const key = r.attendance_sessions?.subjects?.name || 'Unknown'
     if (!grouped[key]) grouped[key] = { total: 0, present: 0 }
     grouped[key].total++
-    if (r.verified) grouped[key].present++
+    if (computeAttendanceStatus(r) === 'present') grouped[key].present++
   })
 
   const getRateColor = (pct) => {
@@ -74,6 +87,16 @@ export function AttendanceReport() {
         </Card>
       </div>
 
+      {teacherReview > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="py-3">
+            <p className="text-sm text-amber-700">
+              <strong>{teacherReview}</strong> session{teacherReview > 1 ? 's' : ''} need{teacherReview === 1 ? 's' : ''} teacher review (entry verified but exit not recorded).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {Object.keys(grouped).length > 0 && (
         <Card>
           <CardHeader><h2 className="font-semibold">Per Subject Breakdown</h2></CardHeader>
@@ -104,22 +127,30 @@ export function AttendanceReport() {
           ) : (
             <Table>
               <THead>
-                <tr><Th>Date</Th><Th>Subject</Th><Th>Status</Th><Th>Seat</Th><Th>Face Verified</Th></tr>
+                <tr><Th>Date</Th><Th>Subject</Th><Th>Entry</Th><Th>Exit</Th><Th>Duration</Th><Th>Status</Th></tr>
               </THead>
               <TBody>
-                {records.map((r) => (
-                  <tr key={r.id}>
-                    <Td className="text-xs">{formatDate(r.marked_at)}</Td>
-                    <Td className="font-medium">{r.attendance_sessions?.subjects?.name} <span className="text-xs text-gray-400">({r.attendance_sessions?.subjects?.code})</span></Td>
-                    <Td>
-                      <Badge variant={r.verified ? 'present' : 'absent'}>
-                        {r.verified ? 'Present' : 'Pending'}
-                      </Badge>
-                    </Td>
-                    <Td>{r.seat_row !== null ? `R${r.seat_row + 1}-C${r.seat_col + 1}` : '—'}</Td>
-                    <Td>{r.verified ? 'Yes' : 'No'}</Td>
-                  </tr>
-                ))}
+                {records.map((r) => {
+                  const status = computeAttendanceStatus(r)
+                  return (
+                    <tr key={r.id}>
+                      <Td className="text-xs">{formatDate(r.marked_at)}</Td>
+                      <Td className="font-medium">{r.attendance_sessions?.subjects?.name} <span className="text-xs text-gray-400">({r.attendance_sessions?.subjects?.code})</span></Td>
+                      <Td className="text-xs text-gray-500">
+                        {r.marked_at ? new Date(r.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </Td>
+                      <Td className="text-xs text-gray-500">
+                        {r.exit_verified_at ? new Date(r.exit_verified_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </Td>
+                      <Td className="text-xs text-gray-500">
+                        {formatDuration(r.marked_at, r.exit_verified_at)}
+                      </Td>
+                      <Td>
+                        <Badge variant={statusVariant(status)}>{statusLabel(status)}</Badge>
+                      </Td>
+                    </tr>
+                  )
+                })}
               </TBody>
             </Table>
           )}

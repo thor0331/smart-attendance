@@ -29,6 +29,7 @@ import { ScanQR } from './pages/student/ScanQR'
 import { FaceVerify } from './pages/student/FaceVerify'
 import { SeatSelection } from './pages/student/SeatSelection'
 import { AttendanceReport } from './pages/student/AttendanceReport'
+import { ExitScanQR } from './pages/student/ExitScanQR'
 
 function RoleRouter() {
   const { profile, loading } = useAuth()
@@ -99,6 +100,7 @@ function App() {
           <Route path="face" element={<FaceVerify />} />
           <Route path="seat" element={<SeatSelection />} />
           <Route path="reports" element={<AttendanceReport />} />
+          <Route path="exit-scan" element={<ExitScanQR />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

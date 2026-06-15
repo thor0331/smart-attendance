@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Loading } from '../../components/ui/Loading'
 import { Badge } from '../../components/ui/Badge'
+import { formatDate, formatDuration, computeAttendanceStatus } from '../../lib/utils'
 import { Users, Clock, MapPin, UserCheck, UserX } from 'lucide-react'
 
 export function LiveAttendance() {
@@ -50,6 +51,18 @@ export function LiveAttendance() {
 
     return () => { supabase.removeChannel(channel) }
   }, [id])
+
+  const statusVariant = (status) => {
+    if (status === 'present') return 'success'
+    if (status === 'teacher_review') return 'warning'
+    return 'danger'
+  }
+
+  const statusLabel = (status) => {
+    if (status === 'present') return 'Present'
+    if (status === 'teacher_review') return 'Teacher Review'
+    return 'Absent'
+  }
 
   if (loading) return <Loading />
 
@@ -133,42 +146,53 @@ export function LiveAttendance() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">#</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Entry Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Exit Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Duration</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Seat</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Face Verified</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Face</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {records.map((rec, i) => (
-                  <tr key={rec.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
-                          {rec.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                {records.map((rec, i) => {
+                  const status = computeAttendanceStatus(rec)
+                  return (
+                    <tr key={rec.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 text-gray-400">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                            {rec.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                          <span className="font-medium text-gray-900">{rec.profiles?.full_name || 'Unknown'}</span>
                         </div>
-                        <span className="font-medium text-gray-900">{rec.profiles?.full_name || 'Unknown'}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={rec.status === 'present' ? 'success' : 'warning'}>
-                        {rec.status || 'present'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {rec.marked_at ? new Date(rec.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {rec.seat_row && rec.seat_col ? `${rec.seat_row}${rec.seat_col}` : '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={rec.face_verified ? 'success' : 'secondary'}>{rec.face_verified ? 'Yes' : 'No'}</Badge>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={statusVariant(status)}>{statusLabel(status)}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {rec.marked_at ? new Date(rec.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {rec.exit_verified_at ? new Date(rec.exit_verified_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {formatDuration(rec.marked_at, rec.exit_verified_at)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {rec.seat_row !== null && rec.seat_col !== null
+                          ? `${String.fromCharCode(65 + rec.seat_row)}${rec.seat_col + 1}`
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={rec.face_verified ? 'success' : 'secondary'}>{rec.face_verified ? 'Yes' : 'No'}</Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
                 {records.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                    <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
                       <UserX size={32} className="mx-auto mb-2 text-gray-300" />
                       No attendance recorded yet
                     </td>
